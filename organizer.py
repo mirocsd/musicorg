@@ -1,6 +1,9 @@
 import os
 import shutil
+import requests
+import urllib.parse
 
+API_KEY = '0d1d6652505b51dc51b0079c72c5d94c'
 class Organizer():
     def __init__(self, directory):
         self._directory = directory
@@ -35,14 +38,22 @@ class Organizer():
                 new_name = format.format(index = index, name = filename) + fileExt
 
                 source_path = os.path.join(album_folder, file)
-                new_path = os.path.join(album_folder, new_name)6
+                new_path = os.path.join(album_folder, new_name)
                 shutil.move(source_path, new_path)
                 print(f"Renamed {file} to {new_name}!!!")
         except FileNotFoundError:
             print("Error: The given directory does not exist.")
 
         
-        
+    def getInfo(self):
+        type = input("Please enter the info you would like (artist or release): ").strip()
+        name = input(f"Please enter the name of the {type}: ").strip()
+        if name != "":
+            name = urllib.parse.quote_plus(name)
+            search_results = requests.get(f'https://musicbrainz.org/ws/2/{type}?query={name}&limit=3&fmt=json')
+        else:
+            print("Error: Please enter a non-empty album name")
+
 
 
     def organize(self):
@@ -59,5 +70,5 @@ class Organizer():
 
 if __name__ == "__main__":
     organizer = Organizer('.')
-    organizer.addIndex()
+    organizer.getInfo()
 
