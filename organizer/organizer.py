@@ -2,6 +2,8 @@ import os
 import shutil
 import requests
 import urllib.parse
+import mutagen.id3
+import mutagen.mp3
 
 API_KEY = '0d1d6652505b51dc51b0079c72c5d94c'
 
@@ -31,47 +33,39 @@ class Organizer():
         
         print("*** Album folder created. ***")
 
-    def addIndex(self):
+
+    def rename_file(self, file, album_folder, new_name):
+        source_path = os.path.join(album_folder, file)
+        new_path = os.path.join(album_folder, new_name)
+        shutil.move(source_path, new_path)
+        print(f"Renamed {file} to {new_name}!")
+
+
+    def reformat(self):
         album_folder = input("Enter the relative or absolute directory of your album folder, containing only .wav or .mp3 files (. if current directory):\n")
-        format = input("Enter the desired song format (e.g. {index} - {name}, {name} {index}, etc.):\n")
-        strip_spec = input("Strip existing special characters or numbers? (Y/N)\nUse if song names are in a different format AND proper song names do not contain special chars or numbers (these will be removed) : ")
-        Invalid = False
+        format = input("Enter the desired song format (e.g. {index} - {name}, {name} {index}, {name} etc.):\n")
+        Invalid = True
+        while Invalid:
+            try:
+                num_removed = int(input("Remove X characters from the start of each track name (0 if none): "))
+                Invalid = False
+            except ValueError:
+                print("Error: Please enter an integer value.")
+
         try:
             files = os.listdir(album_folder)
-            while not Invalid:
-                for item in files:
-                    if (item[-4:] != ('.mp3' or '.wav')) or (item[-5:] != '.flac'):
-                        print("Error: Album folder contains extraneous folders")
-                        Invalid = True
-                        break
-                if Invalid:
-                    break
-                if strip_spec.lower().strip() == 'y':
-                    for index, file in enumerate(files, start=1):
-                        filename_strip = ''
-                        filename, fileExt = os.path.splitext(file)
-                        plaus_chars = "abcdefghijklmnopqrstuvwxyz"
-                        for char in filename:
-                            if char in plaus_chars or plaus_chars.upper():
-                                filename_strip.join(char)
-                        
-                        new_name = format.format(index = index, name = filename_strip) + fileExt
-
-                        source_path = os.path.join(album_folder, file)
-                        new_path = os.path.join(album_folder, new_name)
-                        shutil.move(source_path, new_path)
-                        print(f"Renamed {file} to {new_name}!")
                 
-                else:
-                    for index, file in enumerate(files, start=1):
-
-                        filename, fileExt = os.path.splitext(file)
+        
+            for index, file in enumerate(files, start=1):
+                filename, fileExt = os.path.splitext(file)
+                if fileExt == ".mp3" or ".wav":
+                    if num_removed is None:
                         new_name = format.format(index = index, name = filename) + fileExt
+                    else:
+                        new_name = format.format(index=index, name=filename[num_removed:].strip()) + fileExt
 
-                        source_path = os.path.join(album_folder, file)
-                        new_path = os.path.join(album_folder, new_name)
-                        shutil.move(source_path, new_path)
-                        print(f"Renamed {file} to {new_name}!")
+                self.rename_file(file, album_folder, new_name)
+
         except FileNotFoundError:
             print("Error: The given directory does not exist.")
 
@@ -139,13 +133,67 @@ class Organizer():
                 print("Error: Please enter a non-empty album/artist name")
 
 
-    def organize(self):
-        files = [i for i in os.scandir(path=self.__directory)]
-        for item in files:
-            if item.is_dir():
-                files = [i for i in os.scandir(item.path)]
-                print(files)
+    def editAlbumMetadata(self, artist_name=None, album_name=None, album_year=None):
+        directory = os.getcwd()
+        mp3_files = [i for i in os.listdir(directory) if i.endswith('.mp3')]
+        for file in mp3_files:
 
+            f_path = os.path.join(directory, file)
+            audio = mutagen.mp3.MP3(f_path)
+            
+            if audio.tags is None:
+                audio.tags = mutagen.id3.ID3()
+
+
+            if artist_name:
+                audio.tags['TPE1'] = mutagen.id3.TPE1(encoding=3, text=artist_name)
+            if album_name:
+                audio.tags['TALB'] = mutagen.id3.TALB(encoding=3, text=album_name)
+            if album_year:
+                audio.tags['TYER'] = mutagen.id3.TYER(encoding=3, text=album_year)
+
+            audio.save(f_path, v2_version=3, v1=0)
+
+        print("***Album/artist metadata editing complete***")
+
+        if input("Edit metadata for each track (song title, track number)? (y/n): ").strip() == "y":
+            print("\nAssuming all mp3 files in the current directory are part of the same album.")
+            print("--------------")
+            tr_is_fn = True if input("Take track names as filenames (excluding .mp3)? ").strip() == "y" else False
+
+            print("Beginning track metadata editing.")
+
+            for file in mp3_files:
+                num = input(f"Enter the track number for {file[:-4]}")
+                if tr_is_fn:
+                    self.editTrackMetadata(track=file, track_title=file[:-4], track_num=num)
+                    
+                else:
+                    self.editTrackMetadata(track=file)
+
+
+    def editTrackMetadata(self, track=None, track_title=None, track_num=None):
+        if not track:
+            track = input("Enter the track's full filename in the current working directory")
+        if not track_title:
+            track_title = input("Enter the track title: ").strip()
+
+        while True:
+            if not track_num:
+                track_num = input("Enter the track number: ").strip()
+            if track_num.isdigit():
+                break
             else:
-                files = item
-                print(item)
+                print("Error: Input should be integers only.")
+                track_num = input("Enter the track number: ").strip()
+
+        f_path = os.path.join(os.getcwd(), track)
+        audio = mutagen.mp3.MP3(f_path, v2_version=3)
+
+        if audio.tags is None:
+            audio.tags = mutagen.id3.ID3()
+
+        audio['TIT2'] = mutagen.id3.TIT2(encoding=3, text=track_title)
+        audio['TRCK'] = mutagen.id3.TRCK(encoding=3, text=str(track_num))
+        audio.pprint()
+        audio.save(f_path, v2_version=3)
