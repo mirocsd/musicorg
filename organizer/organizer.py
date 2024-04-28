@@ -4,8 +4,7 @@ import requests
 import urllib.parse
 import mutagen.id3
 import mutagen.mp3
-
-API_KEY = '0d1d6652505b51dc51b0079c72c5d94c'
+from api_key import API_KEY
 
 class Organizer():
     def __init__(self, directory="."):
@@ -157,12 +156,13 @@ class Organizer():
         print("***Album/artist metadata editing complete***")
 
         if input("Edit metadata for each track (song title, track number)? (y/n): ").strip() == "y":
-            print("\nAssuming all mp3 files in the current directory are part of the same album.")
+            print("Assuming all mp3 files in the current directory are part of the same album.")
+            
             print("--------------")
             tr_is_fn = True if input("Take track names as filenames (excluding .mp3)? ").strip() == "y" else False
-
+            print("--------------")
             print("Beginning track metadata editing.")
-
+            print("--------------")
             for file in mp3_files:
                 num = input(f"Enter the track number for {file[:-4]}")
                 if tr_is_fn:
